@@ -28,7 +28,7 @@ with open('data/scifi-finetune.json', 'r') as file:
 # sys.exit(0)
 
 # Using TikToken (Same as GPT3) to tokenize the source text
-encoding = tiktoken.get_encoding("cl100k_base")
+encoding = tiktoken.get_encoding("o200k_base")
 tokenized_text = encoding.encode(str(text))
 tokenized_text = torch.tensor(tokenized_text, dtype=torch.long, device=device)  # 将77,919个tokens 转换到Pytorch张量中
 
@@ -52,7 +52,7 @@ def get_batch(split: str):
     idxs = torch.randint(low=0, high=len(data) - context_length, size=(batch_size,))
     x = torch.stack([data[idx:idx + context_length] for idx in idxs]).to(device)
     y = torch.stack([data[idx + 1:idx + context_length + 1] for idx in idxs]).to(device)
-    
+
     return x, y
 
 
@@ -69,7 +69,7 @@ def estimate_loss():
             losses[k] = loss.item()
         out[split] = losses.mean()
     model.train()
-    
+
     return out
 
 

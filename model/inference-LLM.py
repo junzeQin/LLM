@@ -8,7 +8,7 @@ TORCH_SEED = 1337
 torch.manual_seed(TORCH_SEED)
 torch.cuda.manual_seed(TORCH_SEED)
 
-encoding = tiktoken.get_encoding("cl100k_base")
+encoding = tiktoken.get_encoding("o200k_base")
 
 model = Model()
 model.load_state_dict(torch.load('model-scifi.pt', weights_only=False))

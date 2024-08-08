@@ -23,7 +23,7 @@ num_blocks = 12
 num_heads = 8
 learning_rate = 1e-4
 dropout = 0.1
-max_iters = 20000
+max_iters = 15000
 eval_interval = 50
 eval_iters = 20
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -40,7 +40,7 @@ with open('data/scifi.txt', 'r', encoding='utf-8') as f:
     text = f.read()
 
 # Using TikToken (Same as GPT3) to tokenize the source text
-encoding = tiktoken.get_encoding("cl100k_base")
+encoding = tiktoken.get_encoding("o200k_base")
 tokenized_text = encoding.encode(text)
 max_token_value = max(tokenized_text) + 1  # the maximum value of the tokenized numbers
 tokenized_text = torch.tensor(tokenized_text, dtype=torch.long, device=device)  # put tokenized text into tensor
@@ -51,16 +51,14 @@ train_data = tokenized_text[:split_idx]
 validation_data = tokenized_text[split_idx:]
 
 
-class Feedforward(nn.Module):
+class FeedForwardNetwork(nn.Module):
     def __init__(self):
         super().__init__()
-        self.d_model = d_model
-        self.dropout = dropout
         self.ffn = nn.Sequential(
-            nn.Linear(in_features=self.d_model, out_features=self.d_model * 4),
+            nn.Linear(d_model, d_model * 4),
             nn.ReLU(),
-            nn.Linear(in_features=self.d_model * 4, out_features=self.d_model),
-            nn.Dropout(dropout),
+            nn.Linear(d_model * 4, d_model),
+            nn.Dropout(dropout)
         )
 
     def forward(self, x):
@@ -68,108 +66,81 @@ class Feedforward(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, head_size: int):
+    def __init__(self):
         super().__init__()
-        self.d_model = d_model
-        self.head_size = head_size
-        self.context_length = context_length
-        self.dropout = dropout
-
-        self.key_layer = nn.Linear(in_features=self.d_model, out_features=self.head_size, bias=False)
-        self.query_layer = nn.Linear(in_features=self.d_model, out_features=self.head_size, bias=False)
-        self.value_layer = nn.Linear(in_features=self.d_model, out_features=self.head_size, bias=False)
-        self.register_buffer('tril', torch.tril(torch.ones((self.context_length, self.context_length))))
-        self.dropout_layer = nn.Dropout(self.dropout)
+        self.Wq = nn.Linear(d_model, d_model // num_heads, bias=False)
+        self.Wk = nn.Linear(d_model, d_model // num_heads, bias=False)
+        self.Wv = nn.Linear(d_model, d_model // num_heads, bias=False)
+        self.register_buffer('mask', torch.tril(torch.ones(context_length, context_length)))
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
         B, T, C = x.shape
-        assert T <= self.context_length
-        assert C == self.d_model
-        q = self.query_layer(x)
-        k = self.key_layer(x)
-        v = self.value_layer(x)
+        q = self.Wq(x)
+        k = self.Wk(x)
+        v = self.Wv(x)
 
-        weights = (q @ k.transpose(-2, -1)) * (1.0 / math.sqrt(k.size(-1)))
-        weights = weights.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
-        weights = F.softmax(input=weights, dim=-1)
-        weights = self.dropout_layer(weights)
+        weights = (q @ k.transpose(-2, -1)) / math.sqrt(d_model // num_heads)
+        weights = weights.masked_fill(self.mask[:T, :T] == 0, float('-inf'))
+        weights = F.softmax(weights, dim=-1)
+        weights = self.dropout(weights)
 
-        out = weights @ v
+        output = weights @ v
 
-        return out
+        return output
 
 
 class MultiHeadAttention(nn.Module):
-    def __init__(self, head_size: int):
+    def __init__(self):
         super().__init__()
-        self.num_heads = num_heads
-        self.head_size = head_size
-        self.d_model = d_model
-        self.context_length = context_length
-        self.dropout = dropout
-
-        self.heads = nn.ModuleList([Attention(head_size=self.head_size) for _ in range(self.num_heads)])
-        self.projection_layer = nn.Linear(in_features=self.d_model, out_features=self.d_model)
-        self.dropout_layer = nn.Dropout(dropout)
+        self.heads = nn.ModuleList([Attention() for _ in range(num_heads)])
+        self.projection_layer = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.projection_layer(out)
-        out = self.dropout_layer(out)
+        head_outputs = [head(x) for head in self.heads]
+        head_outputs = torch.cat(head_outputs, dim=-1)
+        out = self.dropout(self.projection_layer(head_outputs))
 
         return out
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, num_heads: int):
+    def __init__(self):
         super().__init__()
-        self.d_model = d_model
-        self.context_length = context_length
-        self.head_size = d_model // num_heads
-        self.num_heads = num_heads
-        self.dropout = dropout
-
-        self.multi_head_attention_layer = MultiHeadAttention(head_size=self.head_size)
-        self.feed_forward_layer = Feedforward()
-        self.layer_norm_1 = nn.LayerNorm(normalized_shape=self.d_model)
-        self.layer_norm_2 = nn.LayerNorm(normalized_shape=self.d_model)
+        self.ln1 = nn.LayerNorm(d_model)
+        self.ln2 = nn.LayerNorm(d_model)
+        self.mha = MultiHeadAttention()
+        self.ffn = FeedForwardNetwork()
 
     def forward(self, x):
-        x = x + self.multi_head_attention_layer(self.layer_norm_1(x))
-        x = x + self.feed_forward_layer(self.layer_norm_2(x))
+        x = x + self.mha(self.ln1(x))
+        x = x + self.ffn(self.ln2(x))
 
         return x
 
 
 class TransformerLanguageModel(nn.Module):
-    def __init__(self):
+    def __init__(self, max_token_value=200018):
         super().__init__()
-        self.d_model = d_model
-        self.context_length = context_length
-        self.num_heads = num_heads
-        self.num_blocks = num_blocks
-        self.dropout = dropout
-        self.max_token_value = max_token_value
-
-        self.token_embedding_lookup_table = nn.Embedding(num_embeddings=self.max_token_value + 1,
-                                                         embedding_dim=self.d_model)
+        self.token_embedding_lookup_table = nn.Embedding(max_token_value, d_model)
         self.transformer_blocks = nn.Sequential(*(
-                [TransformerBlock(num_heads=self.num_heads) for _ in range(self.num_blocks)] +
-                [nn.LayerNorm(self.d_model)]
+                [TransformerBlock() for _ in range(num_blocks)] +
+                [nn.LayerNorm(d_model)]
         ))
-        self.language_model_out_linear_layer = nn.Linear(in_features=self.d_model, out_features=self.max_token_value)
+        self.model_out_linear_layer = nn.Linear(d_model, max_token_value)
 
     def forward(self, idx, targets=None):
         B, T = idx.shape
-        position_encoding_lookup_table = torch.zeros(self.context_length, self.d_model)
-        position = torch.arange(0, self.context_length, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, self.d_model, 2).float() * (-math.log(10000.0) / self.d_model))
+        position_encoding_lookup_table = torch.zeros(context_length, d_model, device=device)
+        position = torch.arange(0, context_length, dtype=torch.float).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-math.log(10000.0) / d_model))
         position_encoding_lookup_table[:, 0::2] = torch.sin(position * div_term)
         position_encoding_lookup_table[:, 1::2] = torch.cos(position * div_term)
         position_embedding = position_encoding_lookup_table[:T, :].to(device)
         x = self.token_embedding_lookup_table(idx) + position_embedding
         x = self.transformer_blocks(x)
-        logits = self.language_model_out_linear_layer(x)
+        logits = self.model_out_linear_layer(x)
 
         if targets is not None:
             B, T, C = logits.shape
@@ -181,10 +152,10 @@ class TransformerLanguageModel(nn.Module):
 
         return logits, loss
 
-    def generate(self, idx, max_new_tokens):
+    def generate(self, idx, max_new_tokens=100):
         for _ in range(max_new_tokens):
-            idx_crop = idx[:, -self.context_length:]
-            logits, loss = self(idx_crop)
+            idx_crop = idx[:, -context_length:]
+            logits, loss = self.forward(idx_crop)
             logits_last_timestep = logits[:, -1, :]
             probs = F.softmax(input=logits_last_timestep, dim=-1)
             idx_next = torch.multinomial(input=probs, num_samples=1)

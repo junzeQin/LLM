@@ -1,3 +1,5 @@
+# 用于文本编码的库
+import tiktoken
 from dataclasses import dataclass
 from typing import Callable, Any
 
@@ -88,6 +90,9 @@ def speak(animal: Animal):
 
 
 if __name__ == '__main__':
+    encoding = tiktoken.get_encoding("o200k_base")
+    print(encoding.max_token_value)
+
     u = "AddaSs"
     a = u
     v = u[:3]
