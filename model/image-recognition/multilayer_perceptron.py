@@ -34,9 +34,11 @@ model = nn.Sequential(
     nn.Linear(784, 30, bias=False),
     nn.LayerNorm(30),
     nn.ReLU(),
+    nn.Dropout(0.2),
     nn.Linear(30, 20, bias=False),
     nn.LayerNorm(20),
     nn.ReLU(),
+    nn.Dropout(0.2),
     nn.Linear(20, 10)
 )
 
@@ -73,11 +75,13 @@ print(loss_result)
 
 
 def estimate_loss(model):
+    model.eval()
     re = {
         'train': _loss(model, train_loader),
         'validate': _loss(model, validate_loader),
         'test': _loss(model, test_loader)
     }
+    model.train()
 
     return re
 
@@ -86,7 +90,7 @@ estimate_loss_result = estimate_loss(model)
 print(estimate_loss_result)
 
 
-def train_model(model, optimizer, epochs=10):
+def train_model(model, optimizer, epochs=10, penalty=False):
     result = []
     for epoch in range(epochs):
         for data in train_loader:
@@ -95,6 +99,9 @@ def train_model(model, optimizer, epochs=10):
             logits = model(inputs.view(B, -1))
             loss = F.cross_entropy(logits, labels)
             result.append(loss.item())
+            if penalty:
+                w = torch.cat([p.view(-1) for p in model.parameters()])
+                loss += w.abs().sum() * 0.001 + 0.002 * w.square().sum()
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
@@ -107,7 +114,7 @@ def train_model(model, optimizer, epochs=10):
     return result
 
 
-loss = {'mlp': train_model(model, optimizer=optim.SGD(model.parameters(), lr=0.01))}
+loss = {'mlp': train_model(model, optimizer=optim.Adam(model.parameters(), lr=0.01), epochs=20)}
 print(loss)
 
 for i in ['mlp']:
