@@ -38,7 +38,7 @@ print(f"数据集合计有 {len(total_tokens):,} tokens")
 # Split train and validation
 train_size = int(len(tokenized_text) * 0.9)
 train_data = tokenized_text[:train_size]
-val_data = tokenized_text[train_size:]
+validation_data = tokenized_text[train_size:]
 
 # Initialize the model
 model = Model()
@@ -48,7 +48,7 @@ model.to(device)
 
 # get batch
 def get_batch(split: str):
-    data = train_data if split == 'train' else val_data
+    data = train_data if split == 'train' else validation_data
     idxs = torch.randint(low=0, high=len(data) - context_length, size=(batch_size,))
     x = torch.stack([data[idx:idx + context_length] for idx in idxs]).to(device)
     y = torch.stack([data[idx + 1:idx + context_length + 1] for idx in idxs]).to(device)
