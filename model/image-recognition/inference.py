@@ -3,12 +3,12 @@ import torch.nn as nn
 import torchvision.models as models
 from torchvision import transforms
 from PIL import Image
-from cnn import simple_cnn
+from cnn import simpleCnn
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # 加载模型
-model = simple_cnn(4).to(device)
+model = simpleCnn(4).to(device)
 model.load_state_dict(torch.load('best_model.pth', map_location=device))  # 加载模型参数
 
 # 设置模型为评估模式

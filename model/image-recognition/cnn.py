@@ -1,5 +1,6 @@
 # 神经网络模块
 import torch.nn as nn
+import torch
 
 
 class simpleCnn(nn.Module):
@@ -39,3 +40,10 @@ class simpleCnn(nn.Module):
         x = self.classifier(x)
 
         return x
+
+
+if __name__ == '__main__':
+    x = torch.randn(32, 3, 224, 224)
+    model = simpleCnn(num_class=4)
+    output = model(x)
+    print(output.shape)
