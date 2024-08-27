@@ -37,10 +37,10 @@ def print_hi(name):
 def mul_result():
     return 1, 2, 3
 
-
 def test_function_param(multiply):
     result = multiply(3, 2)
     return result
+
 
 
 # 定义基类
@@ -85,6 +85,7 @@ class Cat(Animal):
 class HotCat(Cat):
     pass
 
+
 def speak(animal: Animal):
     print(animal.speak())
 
@@ -105,8 +106,8 @@ if __name__ == '__main__':
     # z = my_module1.add(1, 2)
     # print(z)
     #
-    # x = test_function_param(lambda x, y: x * y)
-    # print(x)
+    x = test_function_param(lambda x, y: x * y)
+    print(x)
     #
     # a, b, c = mul_result()
     # print(a, b, c)
@@ -162,3 +163,6 @@ if __name__ == '__main__':
     # with open("D:\Work\Test\ddd.txt", "r", encoding="utf-8") as f:
     #     for line in f:
     #         print(line)
+    users = ['Tony', 'Tom', 'Ben', 'Alex']
+    users_filter = filter(lambda x: x.startswith('T'), users)
+    print(list(users_filter))
