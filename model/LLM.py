@@ -210,7 +210,7 @@ if __name__ == '__main__':
     torch.save(model.state_dict(), 'model-scifi.pt')
 
     model.eval()
-    start = 'The salesperson'
+    start = 'The scifi model'
     start_ids = encoding.encode(start)
     x = (torch.tensor(start_ids, dtype=torch.long, device=device)[None, ...])
     y = model.generate(x, max_new_tokens=100)
